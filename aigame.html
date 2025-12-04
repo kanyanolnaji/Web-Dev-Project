@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Snake Game with Nav</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    body{margin:0; display:flex; background:rgb(133, 112, 112); color:white;}
+    nav#sideNav{position:fixed; top:0; left:0; width:200px; height:100%; background:#0d6efd; padding-top:20px;}
+    nav#sideNav ul{list-style:none; padding:0;}
+    nav#sideNav li{margin:10px 0;}
+    nav#sideNav a{color:white; text-decoration:none; display:block; padding:6px 12px;}
+    .wrap{margin-left:220px; min-height:100%; display:flex; align-items:center; justify-content:center; padding:32px;}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 8px 30px rgba(2,6,23,0.7);border-radius:14px;padding:18px;display:flex;gap:18px;align-items:center}
+    canvas{background:black; border-radius:8px; display:block}
+    .ui{color:#e6eef6;width:240px}
+    h1{margin:0 0 8px 0;font-size:18px}
+    .meta{color:#9ca3af;font-size:13px;margin-bottom:12px}
+    .score{font-weight:700;font-size:20px}
+    .row{display:flex;justify-content:space-between;align-items:center;margin:8px 0}
+    button{background:#10b981;border:0;padding:10px 12px;border-radius:8px;color:#062022;font-weight:700;cursor:pointer}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-weight:600}
+    .hint{font-size:12px;color:#9ca3af;margin-top:12px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .kbd{background:#071226;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.03);font-weight:700;color:#dbeafe}
+    footer{margin-top:12px;font-size:12px;color:#9ca3af}
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-dark bg-primary" id="sideNav">
+    <a class="navbar-brand js-scroll-trigger" href="#page-top">
+      <span class="d-block d-lg-none">Kanyanol Aramkul</span>
+      <span class="d-none d-lg-block"><img class="img-fluid img-profile rounded-circle mx-auto mb-2" src="assets/img/naji's headshot.webp" alt="..." /></span>
+    </a>
+    <ul class="navbar-nav">
+     <li class="nav-item"><a class="nav-link js-scroll-trigger" href="index.html#about">About</a></li>
+
+      <li class="nav-item"><a class="nav-link js-scroll-trigger" href="index.html#experience">Experience</a></li>
+      <li class="nav-item"><a class="nav-link js-scroll-trigger" href="index.html#education">Education</a></li>
+      <li class="nav-item"><a class="nav-link js-scroll-trigger" href="index.html#skills">Skills</a></li>
+      <li class="nav-item"><a class="nav-link js-scroll-trigger" href="index.html#interests">Interests</a></li>
+      <li class="nav-item"><a class="nav-link js-scroll-trigger" href="index.html#awards">Awards</a></li>
+      <li class="nav-item"><a class="nav-link js-scroll-trigger" href="aigame.html">Snake Game</a></li>
+      <li class="nav-item"><a class="nav-link js-scroll-trigger" href="myhobbies.html">Hobbey</a></li>
+    </ul>
+  </nav>
+
+  <div class="wrap" id="snakegame">
+    <div class="card">
+      <canvas id="game" width="600" height="400"></canvas>
+      <div class="ui">
+        <h1>Snake — JS</h1>
+        <div class="meta">Arrow keys or WASD • Space to Pause</div>
+        <div class="row"><div>Score</div><div class="score" id="score">0</div></div>
+        <div class="row"><div>High Score</div><div id="high">0</div></div>
+        <div class="row"><div>Speed</div>
+          <input id="speed" type="range" min="4" max="16" value="8" />
+        </div>
+        <div class="row"><button id="restart">Restart</button><button class="secondary" id="toggleSound">Sound: On</button></div>
+        <div class="hint">Eat food to grow. Don't run into walls or yourself.</div>
+        <div class="controls">
+          <div class="kbd">↑ / W</div>
+          <div class="kbd">↓ / S</div>
+          <div class="kbd">← / A</div>
+          <div class="kbd">→ / D</div>
+        </div>
+        <footer>Open-source — lightweight single-file game</footer>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const highEl = document.getElementById('high');
+    const restartBtn = document.getElementById('restart');
+    const speedRange = document.getElementById('speed');
+    const soundBtn = document.getElementById('toggleSound');
+
+    const GRID = 20;
+    const COLS = Math.floor(canvas.width / GRID);
+    const ROWS = Math.floor(canvas.height / GRID);
+
+    let lastTime = 0;
+    let acc = 0;
+    let speed = Number(speedRange.value);
+    let interval = 1 / speed;
+
+    let direction = {x:0, y:0};
+    let nextDirection = {x:0, y:0};
+    let snake = [];
+    let food = null;
+    let alive = true;
+    let score = 0;
+    let highScore = Number(localStorage.getItem('snakeHigh')||0);
+    highEl.textContent = highScore;
+    let soundOn = true;
+    let started = false;
+
+    const beeper = (()=>{
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      function beep(freq=440, time=0.05, type='sine'){
+        if(!soundOn) return;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = type; o.frequency.value = freq;
+        g.gain.value = 0.02;
+        o.connect(g); g.connect(ctx.destination);
+        o.start(); o.stop(ctx.currentTime + time);
+      }
+      return {beep};
+    })();
+
+    function reset(){
+      speed = Number(speedRange.value);
+      interval = 1/speed;
+      snake = [];
+      const startLen = 5;
+      const startX = Math.floor(COLS/2);
+      const startY = Math.floor(ROWS/2);
+      for(let i=0;i<startLen;i++) snake.push({x: startX - i, y: startY});
+      direction = {x:0,y:0};
+      nextDirection = {x:0,y:0};
+      placeFood();
+      alive = true;
+      started = false;
+      score = 0;
+      scoreEl.textContent = score;
+    }
+
+    function placeFood(){
+      while(true){
+        const x = Math.floor(Math.random()*COLS);
+        const y = Math.floor(Math.random()*ROWS);
+        if(!snake.some(s=>s.x===x && s.y===y)){
+          food = {x,y}; return;
+        }
+      }
+    }
+
+    function step(){
+      if(!started) return;
+      if((nextDirection.x !== -direction.x || nextDirection.y !== -direction.y)){
+        direction = nextDirection;
+      }
+      const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
+      if(head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS || snake.some(s=>s.x===head.x && s.y===head.y)){
+        alive = false; beeper.beep(160,0.12,'sawtooth'); return;
+      }
+      snake.unshift(head);
+      if(food && head.x===food.x && head.y===food.y){
+        score += 10; scoreEl.textContent = score; beeper.beep(880,0.06);
+        placeFood();
+      } else { snake.pop(); }
+    }
+
+    function draw(){
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      if(food){
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(food.x*GRID+3, food.y*GRID+3, GRID-6, GRID-6);
+      }
+
+      for(let i=snake.length-1;i>=0;i--){
+        const s = snake[i];
+        const px = s.x*GRID, py = s.y*GRID;
+        ctx.fillStyle = i===0 ? '#06b6d4' : '#10b981';
+        ctx.fillRect(px+2, py+2, GRID-4, GRID-4);
+      }
+
+      if(!alive){
+        ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.fillStyle='#fff'; ctx.font='28px sans-serif'; ctx.textAlign='center';
+        ctx.fillText('Game Over', canvas.width/2, canvas.height/2);
+      }
+    }
+
+    function loop(t){
+      const dt = (t - lastTime)/1000; lastTime=t; acc+=dt;
+      if(alive && acc >= interval){
+        const steps=Math.floor(acc/interval);
+        for(let i=0;i<steps;i++) step();
+        acc = acc % interval;
+      }
+      draw();
+      if(!alive && score>highScore){ highScore=score; localStorage.setItem('snakeHigh',highScore); highEl.textContent=highScore; }
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('keydown', e=>{
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+      if(!alive && e.key.toLowerCase()==='r'){ reset(); return; }
+      switch(e.key){
+        case 'ArrowUp': case 'w': case 'W': nextDirection={x:0,y:-1}; started=true; break;
+        case 'ArrowDown': case 's': case 'S': nextDirection={x:0,y:1}; started=true; break;
+        case 'ArrowLeft': case 'a': case 'A': nextDirection={x:-1,y:0}; started=true; break;
+        case 'ArrowRight': case 'd': case 'D': nextDirection={x:1,y:0}; started=true; break;
+        case ' ': alive=!alive; if(alive){ lastTime=performance.now(); acc=0; } break;
+      }
+    });
+
+    restartBtn.addEventListener('click', ()=>{ reset(); });
+    speedRange.addEventListener('input', ()=>{ speed=Number(speedRange.value); interval=1/speed; });
+    soundBtn.addEventListener('click', ()=>{ soundOn=!soundOn; soundBtn.textContent=`Sound: ${soundOn?'On':'Off'}`; });
+
+    reset(); requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
